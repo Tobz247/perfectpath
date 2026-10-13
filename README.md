@@ -8,8 +8,8 @@ The full plan lives in the [PerfectPath build plan](https://claude.ai/code/artif
 
 | Folder | What it is |
 | --- | --- |
-| `app/` | React Native (Expo) phone app. Today: a live range test that shows the note you're singing, your lowest and highest held notes, your comfortable range and your closest voice type. Also the part-matching logic that picks the best line and key shift for a song. |
-| `server/` | Python (FastAPI) analysis API. `POST /analyze` takes an uploaded song, separates the vocals with Demucs, tracks pitch with pYIN and returns the vocal line's range and tessitura. |
+| `app/` | React Native (Expo) phone app. A home screen with your saved voice type, a live range test, and a "find your part" screen that uploads a song or a choir score and ranks each vocal line by how well it fits you, with a key change suggestion. Screens live in `app/src/app/` (Expo Router). |
+| `server/` | Python (FastAPI) analysis API. `POST /analyze` takes an uploaded song, separates the vocals with Demucs, tracks pitch with pYIN and returns the vocal line's range and tessitura. `POST /analyze-score` reads a MusicXML choir score with music21 and returns each part's range. |
 
 ## Running the app
 
@@ -20,8 +20,10 @@ cd app
 npm install
 npm test           # pitch detection, range tracking and part matching
 npm run typecheck
-npx expo run:ios   # or run:android, or: npx eas-cli@latest build --profile development
+EXPO_PUBLIC_API_URL=http://<your-computer's-LAN-IP>:8000 npx expo run:ios   # or run:android
 ```
+
+`EXPO_PUBLIC_API_URL` points the app at the analysis server. On a real phone, `localhost` is the phone itself, so use your computer's network address and start the server with `--host 0.0.0.0`.
 
 ## Running the server
 
@@ -30,7 +32,7 @@ cd server
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
 pytest
-uvicorn perfectpath_server.app:app --reload
+uvicorn perfectpath_server.app:app --reload --host 0.0.0.0
 ```
 
 The first real `/analyze` call downloads the Demucs model. Separation takes seconds on a GPU and a few minutes on a CPU, so production should move it onto a job queue on a GPU host.
@@ -43,6 +45,6 @@ The first real `/analyze` call downloads the Demucs model. Separation takes seco
 
 ## Next steps
 
-1. Upload screen in the app that calls `/analyze` and shows `matchParts` results.
-2. Choir mode: read a MusicXML score and match against each part.
-3. Live listening: record a clip of a song playing nearby and analyse it.
+1. The full app flow: onboarding, guided range test, history of analysed songs.
+2. Live listening: record a clip of a song playing nearby and analyse it.
+3. Lead versus backing vocal separation, so pop songs show harmony parts too.
