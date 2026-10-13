@@ -34,7 +34,9 @@
           ],
           "androidForegroundService": false
         }
-      ]
-    ]
+      ],
+      "expo-router"
+    ],
+    "scheme": "perfectpath"
   }
 }

@@ -1,17 +1,20 @@
-import { StatusBar } from 'expo-status-bar';
+import { router } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useLivePitch } from './src/audio/useLivePitch';
-import { centsOff, freqToMidi, midiToName } from './src/pitch/notes';
-import type { PitchEstimate } from './src/pitch/yin';
-import { RangeTracker } from './src/range/rangeTracker';
-import type { SingerRange } from './src/range/types';
-import { rankVoiceTypes } from './src/range/voiceType';
+import { StyleSheet, Text, View } from 'react-native';
+import { useLivePitch } from '../audio/useLivePitch';
+import { Button, colors } from '../components/ui';
+import { centsOff, freqToMidi, midiToName } from '../pitch/notes';
+import type { PitchEstimate } from '../pitch/yin';
+import { RangeTracker } from '../range/rangeTracker';
+import type { SingerRange } from '../range/types';
+import { rankVoiceTypes } from '../range/voiceType';
+import { useSingerRange } from '../state/RangeContext';
 
-export default function App() {
+export default function RangeTest() {
   const tracker = useRef(new RangeTracker());
   const [current, setCurrent] = useState<number | null>(null);
   const [range, setRange] = useState<SingerRange | null>(null);
+  const { saveRange } = useSingerRange();
 
   const handlePitch = useCallback((estimate: PitchEstimate | null) => {
     tracker.current.add(estimate);
@@ -21,7 +24,6 @@ export default function App() {
 
   const mic = useLivePitch(handlePitch);
   const listening = mic.status === 'listening';
-  const voiceType = range ? rankVoiceTypes(range)[0].type : null;
 
   const toggle = async () => {
     if (listening) {
@@ -34,9 +36,14 @@ export default function App() {
     }
   };
 
+  const save = async () => {
+    if (!range) return;
+    await saveRange(range);
+    router.back();
+  };
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Range test</Text>
       <Text style={styles.hint}>
         {listening
           ? 'Slide from your lowest comfortable note to your highest, holding each end for a moment.'
@@ -56,32 +63,29 @@ export default function App() {
           <Text style={styles.resultLine}>
             Comfortable: {midiToName(range.comfortable.low)} to {midiToName(range.comfortable.high)}
           </Text>
-          {!listening && <Text style={styles.voiceType}>Closest voice type: {voiceType}</Text>}
+          {!listening && <Text style={styles.voiceType}>Closest voice type: {rankVoiceTypes(range)[0].type}</Text>}
         </View>
       )}
 
       {mic.status === 'denied' && <Text style={styles.error}>Microphone access is needed for the range test.</Text>}
       {mic.error && <Text style={styles.error}>{mic.error}</Text>}
 
-      <Pressable style={[styles.button, listening && styles.buttonStop]} onPress={toggle}>
-        <Text style={styles.buttonText}>{listening ? 'Stop' : 'Start'}</Text>
-      </Pressable>
-      <StatusBar style="auto" />
+      <View style={styles.actions}>
+        <Button title={listening ? 'Stop' : range ? 'Test again' : 'Start'} variant={listening ? 'danger' : 'primary'} onPress={toggle} />
+        {range && !listening && <Button title="Save my range" variant="secondary" onPress={save} />}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  title: { fontSize: 28, fontWeight: '700', marginBottom: 8 },
-  hint: { fontSize: 16, color: '#555', textAlign: 'center', marginBottom: 32 },
-  note: { fontSize: 72, fontWeight: '700' },
-  cents: { fontSize: 16, color: '#777', marginBottom: 32 },
+  hint: { fontSize: 16, color: colors.muted, textAlign: 'center', marginBottom: 32 },
+  note: { fontSize: 72, fontWeight: '700', color: colors.text },
+  cents: { fontSize: 16, color: colors.muted, marginBottom: 32 },
   result: { alignItems: 'center', marginBottom: 32 },
   resultLine: { fontSize: 18, marginBottom: 4 },
   voiceType: { fontSize: 20, fontWeight: '600', marginTop: 8 },
-  error: { color: '#b00020', marginBottom: 16, textAlign: 'center' },
-  button: { backgroundColor: '#3b5bdb', paddingVertical: 14, paddingHorizontal: 48, borderRadius: 28 },
-  buttonStop: { backgroundColor: '#c92a2a' },
-  buttonText: { color: '#fff', fontSize: 18, fontWeight: '600' },
+  error: { color: colors.danger, marginBottom: 16, textAlign: 'center' },
+  actions: { gap: 12, alignSelf: 'stretch' },
 });
