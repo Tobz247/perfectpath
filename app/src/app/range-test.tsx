@@ -7,13 +7,20 @@ import { centsOff, freqToMidi, midiToName } from '../pitch/notes';
 import type { PitchEstimate } from '../pitch/yin';
 import { RangeTracker } from '../range/rangeTracker';
 import type { SingerRange } from '../range/types';
-import { rankVoiceTypes } from '../range/voiceType';
 import { useSingerRange } from '../state/RangeContext';
+
+const STEPS = [
+  { title: 'Warm up', prompt: 'Hum a comfortable note in the middle of your voice for a few seconds.' },
+  { title: 'Lowest note', prompt: 'Slide down slowly to the lowest note you can sing clearly, and hold it.' },
+  { title: 'Highest note', prompt: "Now slide up to the highest note you can sing without straining, and hold it." },
+];
 
 export default function RangeTest() {
   const tracker = useRef(new RangeTracker());
+  const [step, setStep] = useState(-1);
   const [current, setCurrent] = useState<number | null>(null);
   const [range, setRange] = useState<SingerRange | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
   const { saveRange } = useSingerRange();
 
   const handlePitch = useCallback((estimate: PitchEstimate | null) => {
@@ -23,69 +30,82 @@ export default function RangeTest() {
   }, []);
 
   const mic = useLivePitch(handlePitch);
-  const listening = mic.status === 'listening';
 
-  const toggle = async () => {
-    if (listening) {
-      await mic.stop();
-      setCurrent(null);
-    } else {
-      tracker.current.reset();
-      setRange(null);
-      await mic.start();
+  const start = async () => {
+    tracker.current.reset();
+    setRange(null);
+    setProblem(null);
+    await mic.start();
+    setStep(0);
+  };
+
+  const next = async () => {
+    if (step < STEPS.length - 1) {
+      setStep(step + 1);
+      return;
     }
+    await mic.stop();
+    const result = tracker.current.result();
+    if (!result || result.high - result.low < 5) {
+      setProblem("I didn't catch enough steady notes. Find a quieter spot, hold each note a little longer, and try again.");
+      setStep(-1);
+      return;
+    }
+    await saveRange(result);
+    router.replace('/your-voice');
   };
 
-  const save = async () => {
-    if (!range) return;
-    await saveRange(range);
-    router.back();
-  };
+  if (step === -1) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Let's measure your voice</Text>
+        <Text style={styles.prompt}>
+          Find a quiet spot and hold your phone about an arm's length away. There are three short steps, and only notes
+          you hold steadily count.
+        </Text>
+        {problem && <Text style={styles.error}>{problem}</Text>}
+        {mic.status === 'denied' && <Text style={styles.error}>Microphone access is needed for the range test.</Text>}
+        {mic.error && <Text style={styles.error}>{mic.error}</Text>}
+        <Button title="Start" onPress={start} style={styles.bottom} />
+      </View>
+    );
+  }
 
+  const { title, prompt } = STEPS[step];
   return (
     <View style={styles.container}>
-      <Text style={styles.hint}>
-        {listening
-          ? 'Slide from your lowest comfortable note to your highest, holding each end for a moment.'
-          : 'Tap start, then sing. Only notes you hold steadily count.'}
+      <Text style={styles.stepCount}>
+        Step {step + 1} of {STEPS.length}
       </Text>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.prompt}>{prompt}</Text>
 
-      <Text style={styles.note}>{current === null ? '–' : midiToName(current)}</Text>
-      <Text style={styles.cents}>
-        {current === null ? ' ' : `${centsOff(current) > 0 ? '+' : ''}${centsOff(current)} cents`}
-      </Text>
-
-      {range && (
-        <View style={styles.result}>
-          <Text style={styles.resultLine}>
-            Range: {midiToName(range.low)} to {midiToName(range.high)}
+      <View style={styles.meter}>
+        <Text style={styles.note}>{current === null ? '–' : midiToName(current)}</Text>
+        <Text style={styles.cents}>
+          {current === null ? 'Listening…' : `${centsOff(current) > 0 ? '+' : ''}${centsOff(current)} cents`}
+        </Text>
+        {range && (
+          <Text style={styles.sofar}>
+            So far: {midiToName(range.low)} to {midiToName(range.high)}
           </Text>
-          <Text style={styles.resultLine}>
-            Comfortable: {midiToName(range.comfortable.low)} to {midiToName(range.comfortable.high)}
-          </Text>
-          {!listening && <Text style={styles.voiceType}>Closest voice type: {rankVoiceTypes(range)[0].type}</Text>}
-        </View>
-      )}
-
-      {mic.status === 'denied' && <Text style={styles.error}>Microphone access is needed for the range test.</Text>}
-      {mic.error && <Text style={styles.error}>{mic.error}</Text>}
-
-      <View style={styles.actions}>
-        <Button title={listening ? 'Stop' : range ? 'Test again' : 'Start'} variant={listening ? 'danger' : 'primary'} onPress={toggle} />
-        {range && !listening && <Button title="Save my range" variant="secondary" onPress={save} />}
+        )}
       </View>
+
+      <Button title={step === STEPS.length - 1 ? 'Finish' : 'Next'} onPress={next} style={styles.bottom} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  hint: { fontSize: 16, color: colors.muted, textAlign: 'center', marginBottom: 32 },
-  note: { fontSize: 72, fontWeight: '700', color: colors.text },
-  cents: { fontSize: 16, color: colors.muted, marginBottom: 32 },
-  result: { alignItems: 'center', marginBottom: 32 },
-  resultLine: { fontSize: 18, marginBottom: 4 },
-  voiceType: { fontSize: 20, fontWeight: '600', marginTop: 8 },
-  error: { color: colors.danger, marginBottom: 16, textAlign: 'center' },
-  actions: { gap: 12, alignSelf: 'stretch' },
+  container: { flex: 1, backgroundColor: '#fff', padding: 24, gap: 12 },
+  stepCount: { fontSize: 14, fontWeight: '600', color: colors.primary, textTransform: 'uppercase', marginTop: 8 },
+  title: { fontSize: 28, fontWeight: '700', color: colors.text },
+  prompt: { fontSize: 17, color: colors.muted, lineHeight: 24 },
+  meter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  note: { fontSize: 80, fontWeight: '700', color: colors.text },
+  cents: { fontSize: 16, color: colors.muted },
+  sofar: { fontSize: 17, color: colors.text, marginTop: 24 },
+  error: { color: colors.danger, fontSize: 15 },
+  bottom: { marginTop: 'auto' },
 });

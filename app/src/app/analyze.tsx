@@ -1,11 +1,10 @@
 import * as DocumentPicker from 'expo-document-picker';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { analyzeFile, type AnalysisKind, type PickedFile } from '../api/analysis';
-import { PartResults } from '../components/PartResults';
 import { Button, colors } from '../components/ui';
-import type { VocalLine } from '../range/types';
+import { useHistory } from '../state/HistoryContext';
 import { useSingerRange } from '../state/RangeContext';
 
 const COPY: Record<AnalysisKind, { title: string; intro: string; pickTypes: string[]; extensions: string[]; wait: string }> = {
@@ -30,12 +29,12 @@ export default function Analyze() {
   const kind: AnalysisKind = kindParam === 'score' ? 'score' : 'song';
   const copy = COPY[kind];
   const { range } = useSingerRange();
+  const { addEntry } = useHistory();
 
   const [file, setFile] = useState<PickedFile | null>(null);
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lines, setLines] = useState<VocalLine[] | null>(null);
 
   const pick = async () => {
     const result = await DocumentPicker.getDocumentAsync({ type: copy.pickTypes, copyToCacheDirectory: true });
@@ -47,7 +46,6 @@ export default function Analyze() {
       return;
     }
     setError(null);
-    setLines(null);
     setFile({ uri: asset.uri, name: asset.name, mimeType: asset.mimeType });
   };
 
@@ -56,7 +54,10 @@ export default function Analyze() {
     setBusy(true);
     setError(null);
     try {
-      setLines(await analyzeFile(kind, file));
+      const lines = await analyzeFile(kind, file);
+      const title = file.name.replace(/\.[^.]+$/, '');
+      const entry = await addEntry({ title, kind, lines });
+      router.replace({ pathname: '/result/[id]', params: { id: entry.id } });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong.');
     } finally {
@@ -93,7 +94,6 @@ export default function Analyze() {
       )}
       {error && <Text style={styles.error}>{error}</Text>}
       {!range && <Text style={styles.error}>Take the range test first so PerfectPath knows your voice.</Text>}
-      {range && lines && <PartResults singer={range} lines={lines} />}
     </ScrollView>
   );
 }

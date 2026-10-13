@@ -8,7 +8,7 @@ The full plan lives in the [PerfectPath build plan](https://claude.ai/code/artif
 
 | Folder | What it is |
 | --- | --- |
-| `app/` | React Native (Expo) phone app. A home screen with your saved voice type, a live range test, and a "find your part" screen that uploads a song or a choir score and ranks each vocal line by how well it fits you, with a key change suggestion. Screens live in `app/src/app/` (Expo Router). |
+| `app/` | React Native (Expo) phone app. A welcome screen, a guided three-step range test, a "your voice" result, a home screen with recent songs, and a "find your part" screen that uploads a song or a choir score and ranks each vocal line by how well it fits you, with a key change suggestion. Screens live in `app/src/app/` (Expo Router). |
 | `server/` | Python (FastAPI) analysis API. `POST /analyze` takes an uploaded song, separates the vocals with Demucs, tracks pitch with pYIN and returns the vocal line's range and tessitura. `POST /analyze-score` reads a MusicXML choir score with music21 and returns each part's range. |
 
 ## Running the app
@@ -45,6 +45,7 @@ The first real `/analyze` call downloads the Demucs model. Separation takes seco
 
 ## Next steps
 
-1. The full app flow: onboarding, guided range test, history of analysed songs.
-2. Live listening: record a clip of a song playing nearby and analyse it.
+1. Live listening: record a clip of a song playing nearby and analyse it.
+2. Paste a song link to identify the song (never to download it).
 3. Lead versus backing vocal separation, so pop songs show harmony parts too.
+4. Practice mode: sing along with your part and get a pitch score.
