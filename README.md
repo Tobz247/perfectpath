@@ -45,6 +45,7 @@ The first real `/analyze` call downloads the Demucs model. Separation takes seco
 
 ## Next steps
 
-1. The full app flow: onboarding, guided range test, history of analysed songs.
-2. Live listening: record a clip of a song playing nearby and analyse it.
+1. Live listening: record a clip of a song playing nearby and analyse it.
+2. Paste a song link to identify the song (never to download it).
 3. Lead versus backing vocal separation, so pop songs show harmony parts too.
+4. Practice mode: sing along with your part and get a pitch score.
