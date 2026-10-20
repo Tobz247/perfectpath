@@ -107,8 +107,12 @@ def syllable(pitch: int, doh: int, middle_octave: int) -> str:
     return SYLLABLES[degree] + mark
 
 
-def to_solfa(notes: list[Note], tonic: int, mode: str) -> dict:
-    """Sol-fa for held notes (in time order), split into phrases at rests."""
+def to_solfa(notes: list[Note], tonic: int, mode: str, time_unit: str = "seconds") -> dict:
+    """Sol-fa for held notes (in time order), split into phrases at rests.
+
+    Each note keeps its start and length (in `time_unit`, "seconds" or "beats")
+    so the app can play the line back.
+    """
     doh = doh_of(tonic, mode)
     octaves = [(pitch - doh) // 12 for pitch, _, _ in notes]
     middle = int(np.median(octaves)) if octaves else 0
@@ -118,9 +122,11 @@ def to_solfa(notes: list[Note], tonic: int, mode: str) -> dict:
     for pitch, start, length in notes:
         if last_end is None or start - last_end > PHRASE_GAP_SECONDS or len(phrases[-1]) >= MAX_PHRASE_NOTES:
             phrases.append([])
-        phrases[-1].append({"midi": pitch, "syllable": syllable(pitch, doh, middle)})
+        phrases[-1].append(
+            {"midi": pitch, "syllable": syllable(pitch, doh, middle), "start": round(start, 3), "length": round(length, 3)}
+        )
         last_end = start + length
-    return {"doh": NOTE_NAMES[doh], "key": f"{NOTE_NAMES[tonic]} {mode}", "tonic": tonic, "mode": mode, "phrases": phrases}
+    return {"doh": NOTE_NAMES[doh], "key": f"{NOTE_NAMES[tonic]} {mode}", "tonic": tonic, "mode": mode, "timeUnit": time_unit, "phrases": phrases}
 
 
 def solfa_for_notes(notes: list[Note]) -> dict | None:

@@ -52,3 +52,9 @@ def test_vibrato_stays_one_note():
 def test_pulls_octave_errors_back_into_line():
     notes = held([60, 62, 76, 65, 67])
     assert [n[0] for n in fix_octave_jumps(notes)] == [60, 62, 64, 65, 67]
+
+
+def test_notes_keep_their_timing_for_playback():
+    solfa = to_solfa(held([60, 62]), tonic=0, mode="major")
+    assert solfa["timeUnit"] == "seconds"
+    assert [(n["start"], n["length"]) for n in solfa["phrases"][0]] == [(0.0, 0.5), (0.5, 0.5)]

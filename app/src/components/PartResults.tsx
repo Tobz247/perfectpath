@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { playNote } from '../audio/playNote';
+import { playLine, playNote, type Playback } from '../audio/playNote';
 import { midiToName } from '../pitch/notes';
 import { matchParts } from '../range/match';
 import type { SingerRange, Solfa, VocalLine } from '../range/types';
 import { rankVoiceTypes } from '../range/voiceType';
 import { fonts, useTheme, type Palette } from '../theme';
 import { PianoRange } from './PianoRange';
-import { Badge, Card, Chip, Txt } from './ui';
+import { Badge, Button, Card, Chip, Txt } from './ui';
 
 function describeShift(semitones: number): string {
   if (semitones === 0) return 'Sing it in the original key';
@@ -39,10 +40,43 @@ function partVoiceType(line: VocalLine): string {
   return next && best.score - next.score <= 0.2 ? `${best.type} or ${next.type}` : best.type;
 }
 
-/** The line in tonic sol-fa as tappable chips; notes outside the singer's comfortable range are red. */
+/**
+ * The line in tonic sol-fa as tappable chips, with playback of the whole part
+ * or one phrase so the singer hears how it goes. Notes outside the singer's
+ * comfortable range are red; the note being played is highlighted.
+ */
 function SolfaView({ solfa, singer, transpose }: { solfa: Solfa; singer: SingerRange; transpose: number }) {
   const c = useTheme();
+  const [playing, setPlaying] = useState<{ phrase: number; note: number } | null>(null);
+  const [slow, setSlow] = useState(false);
+  const playback = useRef<Playback | null>(null);
   const outside = (midi: number) => midi + transpose < singer.comfortable.low || midi + transpose > singer.comfortable.high;
+
+  const stop = () => {
+    playback.current?.stop();
+    playback.current = null;
+    setPlaying(null);
+  };
+  useEffect(() => stop, []);
+
+  /** Plays phrases [from, to) in order, keeping track of which note is sounding. */
+  const play = (from: number, to: number) => {
+    stop();
+    const positions = solfa.phrases.slice(from, to).flatMap((phrase, p) => phrase.map((_, n) => ({ phrase: from + p, note: n })));
+    const notes = solfa.phrases.slice(from, to).flat().map((n) => ({ ...n, midi: n.midi + transpose }));
+    playback.current = playLine(
+      notes,
+      (index) => {
+        if (index === -1) {
+          playback.current = null;
+          setPlaying(null);
+        } else setPlaying(positions[index]);
+      },
+      // Scores are timed in beats; play them at 100 beats a minute.
+      { secondsPerUnit: solfa.timeUnit === 'beats' ? 0.6 : 1, slower: slow ? 1.6 : 1 },
+    );
+  };
+
   return (
     <View style={styles.solfa}>
       <View style={styles.badges}>
@@ -50,29 +84,52 @@ function SolfaView({ solfa, singer, transpose }: { solfa: Solfa; singer: SingerR
         {transpose !== 0 && <Badge icon="swap-vertical" text={`${shiftNote(solfa.doh, transpose)} after key change`} color={c.accent} />}
         <Badge text={solfa.key} color={c.muted} />
       </View>
+      <View style={styles.controls}>
+        <Button
+          title={playing ? 'Stop' : 'Play this part'}
+          icon={playing ? 'stop' : 'play'}
+          onPress={playing ? stop : () => play(0, solfa.phrases.length)}
+          style={styles.playButton}
+        />
+        <Chip label="Slow" selected={slow} onPress={() => setSlow(!slow)} />
+      </View>
       {solfa.phrases.map((phrase, index) => (
-        <View key={index} style={[styles.phrase, { borderLeftColor: c.primarySoft }]}>
-          {phrase.map((n, i) => {
-            const red = outside(n.midi);
-            return (
-              <Pressable
-                key={i}
-                accessibilityRole="button"
-                accessibilityLabel={`${n.syllable}, ${midiToName(n.midi + transpose)}`}
-                onPress={() => playNote(n.midi + transpose)}
-                style={({ pressed }) => [
-                  styles.note,
-                  { backgroundColor: red ? c.danger + '1f' : c.primarySoft },
-                  pressed && { backgroundColor: c.accent + '55' },
-                ]}
-              >
-                <Txt style={[styles.syllable, { color: red ? c.danger : c.text }]}>{n.syllable}</Txt>
-              </Pressable>
-            );
-          })}
+        <View key={index} style={[styles.phraseRow, { borderLeftColor: playing?.phrase === index ? c.accent : c.primarySoft }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Play phrase ${index + 1}`}
+            onPress={() => play(index, index + 1)}
+            hitSlop={8}
+          >
+            <Ionicons name="play-circle" size={26} color={c.primary} />
+          </Pressable>
+          <View style={styles.phrase}>
+            {phrase.map((n, i) => {
+              const red = outside(n.midi);
+              const active = playing?.phrase === index && playing.note === i;
+              return (
+                <Pressable
+                  key={i}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${n.syllable}, ${midiToName(n.midi + transpose)}`}
+                  onPress={() => playNote(n.midi + transpose)}
+                  style={({ pressed }) => [
+                    styles.note,
+                    { backgroundColor: red ? c.danger + '1f' : c.primarySoft },
+                    (pressed || active) && { backgroundColor: c.accent },
+                  ]}
+                >
+                  <Txt style={[styles.syllable, { color: active ? c.onPrimary : red ? c.danger : c.text }]}>{n.syllable}</Txt>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
       ))}
-      <Txt variant="small">Tap a note to hear it. Worked out from the music, so check it by ear. Red notes sit outside your comfortable range.</Txt>
+      <Txt variant="small">
+        Play the part or a single phrase to hear how it goes, or tap a note. Worked out from the music, so check it by ear.
+        Red notes sit outside your comfortable range.
+      </Txt>
     </View>
   );
 }
@@ -121,7 +178,7 @@ export function PartResults({ singer, lines }: { singer: SingerRange; lines: Voc
           )}
           <Txt variant="heading">{shown.line.name}</Txt>
           <Txt variant="muted">Voice part: {partVoiceType(shown.line)}</Txt>
-          <SolfaView solfa={shown.line.solfa} singer={singer} transpose={shown.transpose} />
+          <SolfaView key={shown.line.name} solfa={shown.line.solfa} singer={singer} transpose={shown.transpose} />
         </Card>
       )}
     </View>
@@ -136,7 +193,10 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
   solfa: { gap: 10, marginTop: 4 },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  phrase: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, borderLeftWidth: 3, paddingLeft: 8 },
+  controls: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  playButton: { flex: 1 },
+  phraseRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderLeftWidth: 3, paddingLeft: 8 },
+  phrase: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   note: { minWidth: 40, paddingVertical: 6, paddingHorizontal: 8, borderRadius: 10, alignItems: 'center' },
   syllable: { fontFamily: fonts.semibold, fontSize: 17 },
 });

@@ -49,7 +49,8 @@ export function PianoRange({
   const keyColour = (midi: number) => {
     if (singer && midi >= singer.comfortable.low && midi <= singer.comfortable.high) return c.accent;
     if (singer && midi >= singer.low && midi <= singer.high) return c.accent + (isBlack(midi) ? 'aa' : '66');
-    return isBlack(midi) ? c.text : c.card;
+    // Real key colours in both themes; a dark-mode swap would make the keyboard look inverted.
+    return isBlack(midi) ? '#1f2937' : '#f8fafc';
   };
 
   return (

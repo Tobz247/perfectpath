@@ -17,7 +17,7 @@ def _weighted_percentile(values: np.ndarray, weights: np.ndarray, q: float) -> f
     return float(values[np.searchsorted(cumulative, q / 100)])
 
 
-def summarize_notes(name: str, notes: list[Note], tonic: int, mode: str) -> dict:
+def summarize_notes(name: str, notes: list[Note], tonic: int, mode: str, time_unit: str = "seconds") -> dict:
     """Range, tessitura and sol-fa for a line of (MIDI, start, length) notes."""
     midi = np.array([m for m, _, _ in notes], dtype=float)
     # Grace notes have no length; give them a token weight so they still count.
@@ -32,7 +32,7 @@ def summarize_notes(name: str, notes: list[Note], tonic: int, mode: str) -> dict
         },
         # Scores give times in beats and recordings in seconds; either way a rest
         # of more than about half a beat or second ends a phrase.
-        "solfa": to_solfa(sorted(notes, key=lambda n: n[1]), tonic, mode),
+        "solfa": to_solfa(sorted(notes, key=lambda n: n[1]), tonic, mode, time_unit),
     }
 
 
@@ -72,5 +72,5 @@ def summarize_score(path: Path) -> list[dict]:
         groups = {k: v for k, v in groups.items() if v}
         for key in sorted(groups):
             name = part_name if len(groups) == 1 or not key else f"{part_name} ({key})"
-            lines.append(summarize_notes(name, groups[key], tonic, mode))
+            lines.append(summarize_notes(name, groups[key], tonic, mode, "beats"))
     return lines
