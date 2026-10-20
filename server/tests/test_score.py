@@ -1,7 +1,7 @@
 import io
 
 from fastapi.testclient import TestClient
-from music21 import chord, note, stream
+from music21 import chord, key, note, stream
 
 from perfectpath_server.app import app
 
@@ -30,13 +30,16 @@ def upload(data: bytes, name="anthem.musicxml", confirmed=True):
 
 def test_reads_each_part_range():
     score = stream.Score()
-    score.insert(0, part("Soprano", note.Note("C5", quarterLength=4), note.Note("G5", quarterLength=1), note.Note("E4", quarterLength=0.25)))
+    score.insert(0, part("Soprano", key.KeySignature(0), note.Note("C5", quarterLength=4), note.Note("G5", quarterLength=1), note.Note("E4", quarterLength=0.25)))
     score.insert(0, part("Bass", note.Note("C3", quarterLength=2), note.Note("G2", quarterLength=2)))
 
     response = upload(to_musicxml(score))
     assert response.status_code == 200
     soprano, bass = response.json()["lines"]
+    solfa = soprano.pop("solfa")
     assert soprano == {"name": "Soprano", "low": 64, "high": 79, "tessitura": {"low": 72, "high": 79}}
+    assert solfa["doh"] == "C"
+    assert [n["syllable"] for p in solfa["phrases"] for n in p] == ["d", "s", "m₁"]
     assert bass["name"] == "Bass" and (bass["low"], bass["high"]) == (43, 48)
 
 

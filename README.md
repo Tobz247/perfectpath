@@ -8,7 +8,7 @@ The full plan lives in the [PerfectPath build plan](https://claude.ai/code/artif
 
 | Folder | What it is |
 | --- | --- |
-| `app/` | React Native (Expo) phone app. A home screen with your saved voice type, a live range test, and a "find your part" screen that uploads a song or a choir score and ranks each vocal line by how well it fits you, with a key change suggestion. Screens live in `app/src/app/` (Expo Router). |
+| `app/` | React Native (Expo) phone app. A welcome screen, a guided three-step range test, a "your voice" result, a home screen with recent songs, and a "find your part" screen that uploads a song or a choir score and ranks each vocal line by how well it fits you, with a key change suggestion. Screens live in `app/src/app/` (Expo Router). |
 | `server/` | Python (FastAPI) analysis API. `POST /analyze` takes an uploaded song, separates the vocals with Demucs, tracks pitch with pYIN and returns the vocal line's range and tessitura. `POST /analyze-score` reads a MusicXML choir score with music21 and returns each part's range. |
 
 ## Running the app
@@ -31,11 +31,12 @@ EXPO_PUBLIC_API_URL=http://<your-computer's-LAN-IP>:8000 npx expo run:ios   # or
 cd server
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
+pip install --no-deps basic-pitch==0.4.0   # its numpy<1.24 pin no longer builds
 pytest
 uvicorn perfectpath_server.app:app --reload --host 0.0.0.0
 ```
 
-The first real `/analyze` call downloads the Demucs model. Separation takes seconds on a GPU and a few minutes on a CPU, so production should move it onto a job queue on a GPU host.
+`/analyze` separates the loudest 90 seconds of the song with Demucs, splits the lead singer from the backing singers with a karaoke model, and reads the backing harmonies with Basic Pitch, so a song comes back as a lead line plus up to three backing lines (high, middle, low), each with sol-fa. The first real call downloads the Demucs and karaoke models. The karaoke step needs FFmpeg on the PATH (on Windows: `winget install Gyan.FFmpeg`). Separation takes seconds on a GPU and a few minutes on a CPU, so production should move it onto a job queue on a GPU host.
 
 ## Ground rules
 
@@ -45,6 +46,7 @@ The first real `/analyze` call downloads the Demucs model. Separation takes seco
 
 ## Next steps
 
-1. The full app flow: onboarding, guided range test, history of analysed songs.
-2. Live listening: record a clip of a song playing nearby and analyse it.
+1. Live listening: record a clip of a song playing nearby and analyse it.
+2. Paste a song link to identify the song (never to download it).
 3. Lead versus backing vocal separation, so pop songs show harmony parts too.
+4. Practice mode: sing along with your part and get a pitch score.
