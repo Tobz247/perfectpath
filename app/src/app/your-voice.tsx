@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, colors } from '../components/ui';
 import { midiToName } from '../pitch/notes';
 import { rankVoiceTypes } from '../range/voiceType';
@@ -16,7 +17,7 @@ export default function YourVoice() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView edges={['bottom']} style={styles.container}>
       <Text style={styles.label}>You sing closest to</Text>
       <Text style={styles.voiceType}>{best.type}</Text>
       <Text style={styles.detail}>
@@ -37,7 +38,7 @@ export default function YourVoice() {
         <Button title="Find my part in a song" onPress={goHome} />
         <Button title="Redo the test" variant="secondary" onPress={() => router.replace('/range-test')} />
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 

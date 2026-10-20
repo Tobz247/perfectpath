@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLivePitch } from '../audio/useLivePitch';
 import { Button, colors } from '../components/ui';
 import { centsOff, freqToMidi, midiToName } from '../pitch/notes';
@@ -26,7 +27,9 @@ export default function RangeTest() {
   const handlePitch = useCallback((estimate: PitchEstimate | null) => {
     tracker.current.add(estimate);
     setCurrent(estimate && estimate.confidence >= 0.8 ? freqToMidi(estimate.frequency) : null);
-    setRange(tracker.current.result());
+    // Only re-render when the range actually changes, not on every frame.
+    const next = tracker.current.result();
+    setRange((prev) => (prev?.low === next?.low && prev?.high === next?.high ? prev : next));
   }, []);
 
   const mic = useLivePitch(handlePitch);
@@ -57,7 +60,7 @@ export default function RangeTest() {
 
   if (step === -1) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView edges={['bottom']} style={styles.container}>
         <Text style={styles.title}>Let's measure your voice</Text>
         <Text style={styles.prompt}>
           Find a quiet spot and hold your phone about an arm's length away. There are three short steps, and only notes
@@ -67,13 +70,13 @@ export default function RangeTest() {
         {mic.status === 'denied' && <Text style={styles.error}>Microphone access is needed for the range test.</Text>}
         {mic.error && <Text style={styles.error}>{mic.error}</Text>}
         <Button title="Start" onPress={start} style={styles.bottom} />
-      </View>
+      </SafeAreaView>
     );
   }
 
   const { title, prompt } = STEPS[step];
   return (
-    <View style={styles.container}>
+    <SafeAreaView edges={['bottom']} style={styles.container}>
       <Text style={styles.stepCount}>
         Step {step + 1} of {STEPS.length}
       </Text>
@@ -93,7 +96,7 @@ export default function RangeTest() {
       </View>
 
       <Button title={step === STEPS.length - 1 ? 'Finish' : 'Next'} onPress={next} style={styles.bottom} />
-    </View>
+    </SafeAreaView>
   );
 }
 

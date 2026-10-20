@@ -2,6 +2,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { analyzeFile, type AnalysisKind, type PickedFile } from '../api/analysis';
 import { Button, colors } from '../components/ui';
 import { useHistory } from '../state/HistoryContext';
@@ -66,39 +67,42 @@ export default function Analyze() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>{copy.title}</Text>
-      <Text style={styles.intro}>{copy.intro}</Text>
+    <SafeAreaView edges={['bottom']} style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.title}>{copy.title}</Text>
+        <Text style={styles.intro}>{copy.intro}</Text>
 
-      <Button title={file ? `Change file (${file.name})` : 'Choose a file'} variant="secondary" onPress={pick} disabled={busy} />
+        <Button title={file ? `Change file (${file.name})` : 'Choose a file'} variant="secondary" onPress={pick} disabled={busy} />
 
-      <Pressable
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: rightsConfirmed }}
-        style={styles.checkRow}
-        onPress={() => setRightsConfirmed((value) => !value)}
-      >
-        <View style={[styles.checkbox, rightsConfirmed && styles.checkboxOn]}>
-          {rightsConfirmed && <Text style={styles.tick}>✓</Text>}
-        </View>
-        <Text style={styles.checkLabel}>I own this file or have the right to use it.</Text>
-      </Pressable>
+        <Pressable
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: rightsConfirmed }}
+          style={styles.checkRow}
+          onPress={() => setRightsConfirmed((value) => !value)}
+        >
+          <View style={[styles.checkbox, rightsConfirmed && styles.checkboxOn]}>
+            {rightsConfirmed && <Text style={styles.tick}>✓</Text>}
+          </View>
+          <Text style={styles.checkLabel}>I own this file or have the right to use it.</Text>
+        </Pressable>
 
-      <Button title="Find my part" onPress={analyze} disabled={!file || !rightsConfirmed || busy || !range} />
+        <Button title="Find my part" onPress={analyze} disabled={!file || !rightsConfirmed || busy || !range} />
 
-      {busy && (
-        <View style={styles.busy}>
-          <ActivityIndicator color={colors.primary} />
-          <Text style={styles.intro}>{copy.wait}</Text>
-        </View>
-      )}
-      {error && <Text style={styles.error}>{error}</Text>}
-      {!range && <Text style={styles.error}>Take the range test first so PerfectPath knows your voice.</Text>}
-    </ScrollView>
+        {busy && (
+          <View style={styles.busy}>
+            <ActivityIndicator color={colors.primary} />
+            <Text style={styles.intro}>{copy.wait}</Text>
+          </View>
+        )}
+        {error && <Text style={styles.error}>{error}</Text>}
+        {!range && <Text style={styles.error}>Take the range test first so PerfectPath knows your voice.</Text>}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1 },
   container: { padding: 20, gap: 14 },
   title: { fontSize: 24, fontWeight: '700', color: colors.text },
   intro: { fontSize: 16, color: colors.muted, lineHeight: 22 },

@@ -36,7 +36,7 @@ export function useLivePitch(onPitch: (estimate: PitchEstimate | null) => void) 
 
     const recorder = new AudioRecorder();
     recorder.onAudioReady({ sampleRate: 44100, bufferLength: 2048, channelCount: 1 }, ({ buffer }) => {
-      onPitchRef.current(detectPitch(buffer.getChannelData(0), buffer.sampleRate));
+      onPitchRef.current(detectPitch(halve(buffer.getChannelData(0)), buffer.sampleRate / 2));
     });
     recorder.onError((event) => {
       setError(event.message);
@@ -56,4 +56,15 @@ export function useLivePitch(onPitch: (estimate: PitchEstimate | null) => void) 
   useEffect(() => () => void stop(), [stop]);
 
   return { status, error, start, stop };
+}
+
+/**
+ * Halves the sample rate by averaging sample pairs. YIN's cost grows with the
+ * square of the frame length, and at full rate it kept the JS thread so busy
+ * that button taps were never handled. 22 kHz is still plenty for singing.
+ */
+function halve(samples: Float32Array): Float32Array {
+  const out = new Float32Array(samples.length >> 1);
+  for (let i = 0; i < out.length; i++) out[i] = (samples[2 * i] + samples[2 * i + 1]) / 2;
+  return out;
 }

@@ -1,5 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { ScrollView, StyleSheet, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { PartResults } from '../../components/PartResults';
 import { Button, colors } from '../../components/ui';
 import { useHistory } from '../../state/HistoryContext';
@@ -21,19 +22,22 @@ export default function Result() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>{entry.title}</Text>
-      <Text style={styles.meta}>
-        {entry.kind === 'score' ? 'Choir score' : 'Song'} · analysed {new Date(entry.analysedAt).toLocaleDateString()}
-      </Text>
-      <PartResults singer={range} lines={entry.lines} />
-      <Button title="Try another song" onPress={() => router.replace({ pathname: '/analyze', params: { kind: entry.kind } })} />
-      <Button title="Remove from history" variant="secondary" onPress={remove} />
-    </ScrollView>
+    <SafeAreaView edges={['bottom']} style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.title}>{entry.title}</Text>
+        <Text style={styles.meta}>
+          {entry.kind === 'score' ? 'Choir score' : 'Song'} · analysed {new Date(entry.analysedAt).toLocaleDateString()}
+        </Text>
+        <PartResults singer={range} lines={entry.lines} />
+        <Button title="Try another song" onPress={() => router.replace({ pathname: '/analyze', params: { kind: entry.kind } })} />
+        <Button title="Remove from history" variant="secondary" onPress={remove} />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1 },
   container: { padding: 20, gap: 12 },
   title: { fontSize: 24, fontWeight: '700', color: colors.text },
   meta: { fontSize: 15, color: colors.muted, marginBottom: 4 },
