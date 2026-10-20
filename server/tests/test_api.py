@@ -63,3 +63,20 @@ def test_reports_when_there_is_no_singing(monkeypatch):
     monkeypatch.setattr(app_module, "separate_vocals", lambda path: (np.zeros(SR * 5, dtype=np.float32), SR))
     monkeypatch.setattr(app_module, "split_backing", lambda vocals, sr: (vocals, vocals))
     assert upload(TestClient(app_module.app)).status_code == 422
+
+
+def test_song_jobs_report_progress_and_return_the_lines(client):
+    response = client.post(
+        "/jobs",
+        files={"file": ("song.mp3", io.BytesIO(b"fake audio"), "audio/mpeg")},
+        data={"rights_confirmed": "true"},
+    )
+    assert response.status_code == 200
+    job_id = response.json()["id"]
+    app_module._worker.submit(lambda: None).result()  # wait for the job to finish
+    job = client.get(f"/jobs/{job_id}").json()
+    assert job["done"] and job["error"] is None
+    assert job["steps"] == app_module.SONG_STEPS and job["step"] == 2
+    assert [line["name"] for line in job["lines"]] == ["Lead vocal", "Backing (high)"]
+    # Finished jobs are only handed out once.
+    assert client.get(f"/jobs/{job_id}").status_code == 404

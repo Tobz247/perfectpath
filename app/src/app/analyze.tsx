@@ -1,31 +1,44 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { analyzeFile, type AnalysisKind, type PickedFile } from '../api/analysis';
-import { Button, colors } from '../components/ui';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { analyzeFile, type AnalysisKind, type PickedFile, type Progress } from '../api/analysis';
+import { Button, Card, IconBubble, ProgressBar, Screen, Txt } from '../components/ui';
 import { useHistory } from '../state/HistoryContext';
 import { useSingerRange } from '../state/RangeContext';
+import { fonts, useTheme } from '../theme';
 
-const COPY: Record<AnalysisKind, { title: string; intro: string; pickTypes: string[]; extensions: string[]; wait: string }> = {
+const COPY: Record<AnalysisKind, { title: string; intro: string; pickTypes: string[]; extensions: string[] }> = {
   song: {
     title: 'Find your part in a song',
-    intro: 'Pick a song file you own. PerfectPath separates the vocals, measures them and deletes the audio afterwards.',
+    intro: 'Pick a song file you own. PerfectPath separates the voices, measures each part and deletes the audio afterwards.',
     pickTypes: ['audio/*'],
     extensions: ['.mp3', '.m4a', '.wav', '.flac', '.ogg', '.aac'],
-    wait: 'Separating the vocals. This can take a minute or two.',
   },
   score: {
     title: 'Find your part in a choir piece',
     intro: 'Pick the score as a MusicXML file (.musicxml, .xml or .mxl). Most notation apps and choir libraries can export it.',
     pickTypes: ['*/*'],
     extensions: ['.musicxml', '.xml', '.mxl'],
-    wait: 'Reading the score.',
   },
 };
 
+const UPLOADING = 'Uploading';
+
+/** Counts up while a long step runs, so the screen visibly keeps moving. */
+function useElapsed(running: boolean): number {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    if (!running) return setSeconds(0);
+    const timer = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, [running]);
+  return seconds;
+}
+
 export default function Analyze() {
+  const c = useTheme();
   const { kind: kindParam } = useLocalSearchParams<{ kind?: string }>();
   const kind: AnalysisKind = kindParam === 'score' ? 'score' : 'song';
   const copy = COPY[kind];
@@ -35,7 +48,9 @@ export default function Analyze() {
   const [file, setFile] = useState<PickedFile | null>(null);
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<Progress | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const elapsed = useElapsed(busy);
 
   const pick = async () => {
     const result = await DocumentPicker.getDocumentAsync({ type: copy.pickTypes, copyToCacheDirectory: true });
@@ -53,9 +68,10 @@ export default function Analyze() {
   const analyze = async () => {
     if (!file) return;
     setBusy(true);
+    setProgress(null);
     setError(null);
     try {
-      const lines = await analyzeFile(kind, file);
+      const lines = await analyzeFile(kind, file, setProgress);
       const title = file.name.replace(/\.[^.]+$/, '');
       const entry = await addEntry({ title, kind, lines });
       router.replace({ pathname: '/result/[id]', params: { id: entry.id } });
@@ -66,51 +82,92 @@ export default function Analyze() {
     }
   };
 
+  // Uploading counts as the first step, then the server's own steps follow.
+  const steps = [UPLOADING, ...(progress?.steps ?? (kind === 'song' ? [] : ['Reading the score']))];
+  const active = progress ? progress.step + 1 : 0;
+  const fraction = steps.length > 1 ? Math.max(active, 0.3) / steps.length : 0.3;
+
   return (
-    <SafeAreaView edges={['bottom']} style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>{copy.title}</Text>
-        <Text style={styles.intro}>{copy.intro}</Text>
+    <Screen>
+      <Txt variant="title">{copy.title}</Txt>
+      <Txt variant="muted">{copy.intro}</Txt>
 
-        <Button title={file ? `Change file (${file.name})` : 'Choose a file'} variant="secondary" onPress={pick} disabled={busy} />
-
-        <Pressable
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: rightsConfirmed }}
-          style={styles.checkRow}
-          onPress={() => setRightsConfirmed((value) => !value)}
-        >
-          <View style={[styles.checkbox, rightsConfirmed && styles.checkboxOn]}>
-            {rightsConfirmed && <Text style={styles.tick}>✓</Text>}
+      <Pressable accessibilityRole="button" onPress={pick} disabled={busy}>
+        <Card style={[styles.picker, { borderStyle: 'dashed', borderColor: c.primary }]}>
+          <IconBubble name={file ? 'musical-note' : 'cloud-upload'} />
+          <View style={styles.pickerText}>
+            <Txt variant="heading" style={styles.fileName} numberOfLines={2}>
+              {file ? file.name : 'Choose a file'}
+            </Txt>
+            <Txt variant="small">{file ? 'Tap to change' : copy.extensions.join('  ')}</Txt>
           </View>
-          <Text style={styles.checkLabel}>I own this file or have the right to use it.</Text>
-        </Pressable>
+        </Card>
+      </Pressable>
 
-        <Button title="Find my part" onPress={analyze} disabled={!file || !rightsConfirmed || busy || !range} />
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: rightsConfirmed }}
+        style={styles.checkRow}
+        onPress={() => setRightsConfirmed((value) => !value)}
+        disabled={busy}
+      >
+        <View style={[styles.checkbox, { borderColor: c.primary }, rightsConfirmed && { backgroundColor: c.primary }]}>
+          {rightsConfirmed && <Ionicons name="checkmark" size={18} color={c.onPrimary} />}
+        </View>
+        <Txt style={styles.checkLabel}>I own this file or have the right to use it.</Txt>
+      </Pressable>
 
-        {busy && (
-          <View style={styles.busy}>
-            <ActivityIndicator color={colors.primary} />
-            <Text style={styles.intro}>{copy.wait}</Text>
+      <Button
+        title={busy ? 'Working…' : 'Find my part'}
+        icon="sparkles"
+        onPress={analyze}
+        disabled={!file || !rightsConfirmed || busy || !range}
+      />
+
+      {busy && (
+        <Card style={styles.progress}>
+          <View style={styles.progressHead}>
+            <Txt variant="heading">Analysing</Txt>
+            <Txt variant="small">
+              {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
+            </Txt>
           </View>
-        )}
-        {error && <Text style={styles.error}>{error}</Text>}
-        {!range && <Text style={styles.error}>Take the range test first so PerfectPath knows your voice.</Text>}
-      </ScrollView>
-    </SafeAreaView>
+          <ProgressBar value={fraction} />
+          {steps.map((label, index) => {
+            const state = index < active ? 'done' : index === active ? 'active' : 'waiting';
+            return (
+              <View key={label} style={styles.stepRow}>
+                {state === 'done' ? (
+                  <Ionicons name="checkmark-circle" size={22} color={c.accent} />
+                ) : state === 'active' ? (
+                  <ActivityIndicator color={c.primary} />
+                ) : (
+                  <Ionicons name="ellipse-outline" size={22} color={c.border} />
+                )}
+                <Txt style={[styles.stepLabel, { color: state === 'waiting' ? c.muted : c.text }]}>{label}</Txt>
+              </View>
+            );
+          })}
+          {kind === 'song' && (
+            <Txt variant="small">Separating voices takes a few minutes on a computer without a graphics card. Keep the app open.</Txt>
+          )}
+        </Card>
+      )}
+      {error && <Txt color={c.danger}>{error}</Txt>}
+      {!range && <Txt color={c.danger}>Take the range test first so PerfectPath knows your voice.</Txt>}
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  container: { padding: 20, gap: 14 },
-  title: { fontSize: 24, fontWeight: '700', color: colors.text },
-  intro: { fontSize: 16, color: colors.muted, lineHeight: 22 },
+  picker: { flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1.5 },
+  pickerText: { flex: 1 },
+  fileName: { fontSize: 16 },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  checkboxOn: { backgroundColor: colors.primary },
-  tick: { color: '#fff', fontWeight: '700' },
-  checkLabel: { flex: 1, fontSize: 15, color: colors.text },
-  busy: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  error: { color: colors.danger, fontSize: 15 },
+  checkbox: { width: 26, height: 26, borderRadius: 7, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  checkLabel: { flex: 1 },
+  progress: { gap: 12 },
+  progressHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  stepRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stepLabel: { fontFamily: fonts.medium },
 });
