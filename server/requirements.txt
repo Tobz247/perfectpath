@@ -6,3 +6,12 @@ librosa==1.0.0
 soundfile==0.14.0
 demucs==4.1.0
 music21==10.5.0
+audio-separator[cpu]==0.47.1
+onnxruntime==1.31.0
+audioread==3.1.0
+# basic-pitch's own requirements pin numpy<1.24, which no longer builds; it runs
+# fine on numpy 2 with its ONNX model, so it is installed with --no-deps (see
+# the README) and its runtime dependencies are listed here instead.
+mir_eval==0.8.2
+pretty_midi==0.2.11.post0
+scikit-learn==1.9.1

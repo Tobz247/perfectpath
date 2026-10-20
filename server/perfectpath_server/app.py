@@ -12,7 +12,8 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
 from .pitch import summarize_line
 from .score import summarize_score
-from .separation import separate_vocals
+from .harmony import backing_lines
+from .separation import separate_vocals, split_backing
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 ALLOWED_SUFFIXES = {".mp3", ".m4a", ".wav", ".flac", ".ogg", ".aac"}
@@ -49,10 +50,14 @@ def analyze(file: UploadFile = File(...), rights_confirmed: bool = Form(False)) 
         path.write_bytes(data)
         vocals, sample_rate = separate_vocals(path)
 
-    line = summarize_line(vocals, sample_rate, name="Lead vocal")
-    if line is None:
+    lead_audio, backing_audio = split_backing(vocals, sample_rate)
+    lead = summarize_line(lead_audio, sample_rate, name="Lead vocal")
+    if lead is None:
         raise HTTPException(422, "Couldn't find enough clear singing in this recording.")
-    return {"lines": [line]}
+    # Harmony lines share the lead's key so every part's sol-fa has the same doh.
+    solfa = lead.get("solfa")
+    backing = backing_lines(backing_audio, sample_rate, solfa["tonic"], solfa["mode"]) if solfa else []
+    return {"lines": [lead, *backing]}
 
 
 @app.post("/analyze-score")

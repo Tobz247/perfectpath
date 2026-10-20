@@ -31,11 +31,12 @@ EXPO_PUBLIC_API_URL=http://<your-computer's-LAN-IP>:8000 npx expo run:ios   # or
 cd server
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
+pip install --no-deps basic-pitch==0.4.0
 pytest
 uvicorn perfectpath_server.app:app --reload --host 0.0.0.0
 ```
 
-The first real `/analyze` call downloads the Demucs model. Separation takes seconds on a GPU and a few minutes on a CPU, so production should move it onto a job queue on a GPU host.
+`/analyze` separates the loudest 90 seconds of the song with Demucs, splits the lead singer from the backing singers with a karaoke model, and reads the backing harmonies with Basic Pitch, so a song comes back as a lead line plus up to three backing lines (high, middle, low), each with sol-fa. The first real call downloads the Demucs and karaoke models. Separation takes seconds on a GPU and a few minutes on a CPU, so production should move it onto a job queue on a GPU host.
 
 ## Ground rules
 

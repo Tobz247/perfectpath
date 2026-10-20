@@ -3,6 +3,8 @@
 import librosa
 import numpy as np
 
+from .solfa import notes_from_track, solfa_for_notes
+
 # C2 to C6 covers bass through soprano.
 FMIN = 65.0
 FMAX = 1050.0
@@ -30,4 +32,7 @@ def summarize_line(audio: np.ndarray, sample_rate: int, name: str) -> dict | Non
         "high": high,
         "tessitura": {"low": tess_low, "high": tess_high},
         "voicedSeconds": round(float(confident.sum() * hop_seconds), 1),
+        # pYIN's voicing decision is enough here: the stricter probability cut used
+        # for the range drops most frames of real (separated) singing.
+        "solfa": solfa_for_notes(notes_from_track(np.where(voiced & np.isfinite(f0), librosa.hz_to_midi(f0), np.nan), hop_seconds)),
     }
